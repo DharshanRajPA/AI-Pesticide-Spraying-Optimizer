@@ -3,155 +3,252 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AgriSprayAI - Pest Detection & Spraying Optimization</title>
+    <title>AgriSprayAI - AI Pest Detection & Analysis</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             padding: 20px;
         }
+        
         .container {
-            max-width: 800px;
+            max-width: 1200px;
             margin: 0 auto;
             background: white;
             border-radius: 20px;
             box-shadow: 0 20px 40px rgba(0,0,0,0.1);
             overflow: hidden;
         }
+        
         .header {
-            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            background: linear-gradient(135deg, #2c5530 0%, #1e3a21 100%);
             color: white;
             padding: 30px;
             text-align: center;
         }
+        
         .header h1 {
             font-size: 2.5em;
             margin-bottom: 10px;
         }
+        
         .header p {
             font-size: 1.2em;
             opacity: 0.9;
         }
-        .content {
+        
+        .main-content {
             padding: 40px;
         }
-        .upload-area {
-            border: 3px dashed #4CAF50;
-            border-radius: 15px;
-            padding: 40px;
-            text-align: center;
-            background: #f8f9fa;
+        
+        .input-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
             margin-bottom: 30px;
+        }
+        
+        .input-card {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 25px;
+            border: 2px dashed #dee2e6;
             transition: all 0.3s ease;
         }
-        .upload-area:hover {
-            background: #e8f5e8;
-            border-color: #45a049;
+        
+        .input-card:hover {
+            border-color: #2c5530;
+            background: #f0f8f0;
         }
-        .upload-area.dragover {
-            background: #e8f5e8;
-            border-color: #45a049;
-            transform: scale(1.02);
+        
+        .input-card h3 {
+            color: #2c5530;
+            margin-bottom: 15px;
+            font-size: 1.3em;
         }
+        
+        .file-input-wrapper {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+        }
+        
         .file-input {
-            display: none;
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #dee2e6;
+            border-radius: 10px;
+            font-size: 16px;
+            background: white;
+            cursor: pointer;
         }
-        .upload-btn {
-            background: #4CAF50;
+        
+        .text-input {
+            width: 100%;
+            min-height: 120px;
+            padding: 15px;
+            border: 2px solid #dee2e6;
+            border-radius: 10px;
+            font-size: 16px;
+            font-family: inherit;
+            resize: vertical;
+        }
+        
+        .text-input:focus, .file-input:focus {
+            outline: none;
+            border-color: #2c5530;
+            box-shadow: 0 0 0 3px rgba(44, 85, 48, 0.1);
+        }
+        
+        .analyze-btn {
+            background: linear-gradient(135deg, #2c5530 0%, #1e3a21 100%);
             color: white;
             border: none;
-            padding: 15px 30px;
-            border-radius: 25px;
-            font-size: 1.1em;
+            padding: 15px 40px;
+            font-size: 18px;
+            border-radius: 50px;
             cursor: pointer;
             transition: all 0.3s ease;
-            margin: 10px;
+            display: block;
+            margin: 30px auto;
+            box-shadow: 0 5px 15px rgba(44, 85, 48, 0.3);
         }
-        .upload-btn:hover {
-            background: #45a049;
+        
+        .analyze-btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(76, 175, 80, 0.3);
+            box-shadow: 0 8px 25px rgba(44, 85, 48, 0.4);
         }
-        .detect-btn {
-            background: #2196F3;
-            color: white;
-            border: none;
-            padding: 15px 30px;
-            border-radius: 25px;
-            font-size: 1.1em;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            margin: 10px;
-        }
-        .detect-btn:hover {
-            background: #1976D2;
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(33, 150, 243, 0.3);
-        }
-        .detect-btn:disabled {
-            background: #ccc;
+        
+        .analyze-btn:disabled {
+            opacity: 0.6;
             cursor: not-allowed;
             transform: none;
-            box-shadow: none;
         }
+        
         .results {
             margin-top: 30px;
-            padding: 30px;
+            padding: 25px;
             background: #f8f9fa;
             border-radius: 15px;
-            border-left: 5px solid #4CAF50;
             display: none;
         }
+        
         .results h3 {
-            color: #4CAF50;
+            color: #2c5530;
             margin-bottom: 20px;
             font-size: 1.5em;
         }
-        .result-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 15px;
-            margin: 10px 0;
+        
+        .result-section {
             background: white;
+            margin: 15px 0;
+            padding: 20px;
             border-radius: 10px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            border-left: 4px solid #2c5530;
         }
-        .result-label {
-            font-weight: bold;
-            color: #333;
+        
+        .result-section h4 {
+            color: #2c5530;
+            margin-bottom: 10px;
         }
-        .result-value {
-            color: #4CAF50;
-            font-weight: bold;
+        
+        .pest-item {
+            background: #e8f4e8;
+            margin: 8px 0;
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 3px solid #2c5530;
         }
+        
+        .recommendation-item {
+            background: #fff3cd;
+            margin: 8px 0;
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 3px solid #ffc107;
+        }
+        
+        .cost-item {
+            background: #d1ecf1;
+            margin: 8px 0;
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 3px solid #17a2b8;
+        }
+        
+        .confidence-bar {
+            width: 100%;
+            height: 20px;
+            background: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        
+        .confidence-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #dc3545 0%, #ffc107 50%, #28a745 100%);
+            transition: width 0.3s ease;
+        }
+        
         .loading {
             display: none;
             text-align: center;
             padding: 20px;
         }
+        
         .spinner {
             border: 4px solid #f3f3f3;
-            border-top: 4px solid #4CAF50;
+            border-top: 4px solid #2c5530;
             border-radius: 50%;
             width: 40px;
             height: 40px;
             animation: spin 1s linear infinite;
-            margin: 0 auto 20px;
+            margin: 0 auto 10px;
         }
+        
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        
         .error {
-            background: #ffebee;
-            color: #c62828;
+            background: #f8d7da;
+            color: #721c24;
             padding: 15px;
             border-radius: 10px;
-            margin: 20px 0;
-            border-left: 5px solid #c62828;
+            border-left: 4px solid #dc3545;
+            margin: 15px 0;
+        }
+        
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 10px;
+            border-left: 4px solid #28a745;
+            margin: 15px 0;
+        }
+        
+        @media (max-width: 768px) {
+            .input-section {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .main-content {
+                padding: 20px;
+            }
         }
     </style>
 </head>
@@ -159,159 +256,225 @@
     <div class="container">
         <div class="header">
             <h1>🌾 AgriSprayAI</h1>
-            <p>Pest Detection & Spraying Optimization System</p>
+            <p>AI-Powered Pest Detection & Spraying Optimization</p>
         </div>
         
-        <div class="content">
-            <div class="upload-area" id="uploadArea">
-                <h3>📸 Upload Field Image</h3>
-                <p>Drag & drop an image or click to select</p>
-                <input type="file" id="imageInput" class="file-input" accept="image/*">
-                <button class="upload-btn" onclick="document.getElementById('imageInput').click()">
-                    Choose Image
-                </button>
-                <div id="fileName" style="margin-top: 15px; font-weight: bold; color: #4CAF50;"></div>
+        <div class="main-content">
+            <div class="input-section">
+                <div class="input-card">
+                    <h3>📸 Upload Field Image</h3>
+                    <div class="file-input-wrapper">
+                        <input type="file" id="imageInput" class="file-input" accept="image/*">
+                    </div>
+                    <p style="margin-top: 10px; color: #666; font-size: 14px;">
+                        Upload a clear photo of your field showing pest damage or affected plants
+                    </p>
+                </div>
+                
+                <div class="input-card">
+                    <h3>💬 Describe the Problem</h3>
+                    <textarea 
+                        id="queryInput" 
+                        class="text-input" 
+                        placeholder="Describe what you see in your field...&#10;&#10;Examples:&#10;• 'I see holes in my tomato leaves and small green bugs'&#10;• 'My corn plants are wilting and I found caterpillars'&#10;• 'There are many aphids on my roses and the leaves are turning yellow'"
+                    ></textarea>
+                </div>
             </div>
             
-            <div style="text-align: center;">
-                <button class="detect-btn" id="detectBtn" onclick="detectPests()" disabled>
-                    🔍 Detect Pests & Optimize Spraying
-                </button>
-            </div>
+            <button id="analyzeBtn" class="analyze-btn" onclick="analyzeField()">
+                🔍 Analyze Field & Get Recommendations
+            </button>
             
             <div class="loading" id="loading">
                 <div class="spinner"></div>
-                <p>Analyzing image and calculating recommendations...</p>
+                <p>Analyzing your field image and description...</p>
             </div>
             
-            <div class="results" id="results">
-                <h3>🎯 Detection Results & Recommendations</h3>
+            <div id="results" class="results">
+                <h3>🎯 Analysis Results & Recommendations</h3>
                 <div id="resultsContent"></div>
             </div>
         </div>
     </div>
 
     <script>
-        const imageInput = document.getElementById('imageInput');
-        const uploadArea = document.getElementById('uploadArea');
-        const detectBtn = document.getElementById('detectBtn');
-        const fileName = document.getElementById('fileName');
-        const loading = document.getElementById('loading');
-        const results = document.getElementById('results');
-        const resultsContent = document.getElementById('resultsContent');
-
-        // File input handling
-        imageInput.addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (file) {
-                fileName.textContent = `Selected: ${file.name}`;
-                detectBtn.disabled = false;
-            }
-        });
-
-        // Drag and drop handling
-        uploadArea.addEventListener('dragover', function(e) {
-            e.preventDefault();
-            uploadArea.classList.add('dragover');
-        });
-
-        uploadArea.addEventListener('dragleave', function(e) {
-            e.preventDefault();
-            uploadArea.classList.remove('dragover');
-        });
-
-        uploadArea.addEventListener('drop', function(e) {
-            e.preventDefault();
-            uploadArea.classList.remove('dragover');
-            const files = e.dataTransfer.files;
-            if (files.length > 0) {
-                imageInput.files = files;
-                fileName.textContent = `Selected: ${files[0].name}`;
-                detectBtn.disabled = false;
-            }
-        });
-
-        // Main detection function
-        async function detectPests() {
-            const file = imageInput.files[0];
-            if (!file) {
-                alert('Please select an image first!');
+        async function analyzeField() {
+            const imageFile = document.getElementById('imageInput').files[0];
+            const userQuery = document.getElementById('queryInput').value.trim();
+            
+            // Validation
+            if (!imageFile) {
+                alert('Please upload an image of your field');
                 return;
             }
-
+            
+            if (!userQuery) {
+                alert('Please describe the problem you see in your field');
+                return;
+            }
+            
             // Show loading
-            loading.style.display = 'block';
-            results.style.display = 'none';
-            detectBtn.disabled = true;
-
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('results').style.display = 'none';
+            document.getElementById('analyzeBtn').disabled = true;
+            
             try {
                 const formData = new FormData();
-                formData.append('file', file);
-
-                const response = await fetch('/detect', {
+                formData.append('file', imageFile);
+                formData.append('user_query', userQuery);
+                
+                const response = await fetch('/analyze', {
                     method: 'POST',
                     body: formData
                 });
-
+                
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
-
-                const data = await response.json();
-
-                if (data.error) {
-                    throw new Error(data.error);
-                }
-
-                displayResults(data);
-
+                
+                const results = await response.json();
+                displayResults(results);
+                
             } catch (error) {
                 console.error('Error:', error);
-                resultsContent.innerHTML = `
-                    <div class="error">
-                        <strong>Error:</strong> ${error.message}
-                    </div>
-                `;
-                results.style.display = 'block';
+                showError('Analysis failed: ' + error.message);
             } finally {
-                loading.style.display = 'none';
-                detectBtn.disabled = false;
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('analyzeBtn').disabled = false;
             }
         }
-
-        // Display results
+        
         function displayResults(data) {
-            const pestTypesText = data.pest_types ? data.pest_types.join(', ') : 'Unknown';
+            if (data.error) {
+                showError(data.error);
+                return;
+            }
             
-            resultsContent.innerHTML = `
-                <div class="result-item">
-                    <span class="result-label">🔍 Pests Detected:</span>
-                    <span class="result-value">${data.pest_count}</span>
-                </div>
-                <div class="result-item">
-                    <span class="result-label">🐛 Pest Types:</span>
-                    <span class="result-value">${pestTypesText}</span>
-                </div>
-                <div class="result-item">
-                    <span class="result-label">📏 Field Area:</span>
-                    <span class="result-value">${data.field_area} hectares</span>
-                </div>
-                <div class="result-item">
-                    <span class="result-label">💧 Pesticide Quantity:</span>
-                    <span class="result-value">${data.pesticide_quantity} ml</span>
-                </div>
-                <div class="result-item">
-                    <span class="result-label">💰 Estimated Cost:</span>
-                    <span class="result-value">$${data.cost_estimate}</span>
-                </div>
-                <div class="result-item">
-                    <span class="result-label">💡 Recommendations:</span>
-                    <span class="result-value">${data.recommendations}</span>
+            const resultsContent = document.getElementById('resultsContent');
+            resultsContent.innerHTML = '';
+            
+            // Analysis ID and timestamp
+            resultsContent.innerHTML += `
+                <div class="success">
+                    <strong>Analysis ID:</strong> ${data.analysis_id}<br>
+                    <strong>Processed:</strong> ${new Date(data.timestamp).toLocaleString()}<br>
+                    <strong>Processing Time:</strong> ${data.processing_time.toFixed(2)} seconds
                 </div>
             `;
             
-            results.style.display = 'block';
+            // User Query
+            resultsContent.innerHTML += `
+                <div class="result-section">
+                    <h4>📝 Your Description</h4>
+                    <p>"${data.user_query}"</p>
+                </div>
+            `;
+            
+            // Image Analysis
+            if (data.image_analysis) {
+                resultsContent.innerHTML += `
+                    <div class="result-section">
+                        <h4>📸 Image Analysis</h4>
+                        <p><strong>Pests Detected:</strong> ${data.image_analysis.pest_count}</p>
+                        <p><strong>Pest Types:</strong> ${data.image_analysis.pest_types.join(', ') || 'None detected'}</p>
+                        <p><strong>Field Area:</strong> ${data.image_analysis.field_area} hectares</p>
+                        <p><strong>Image Quality:</strong> ${data.image_analysis.image_quality}</p>
+                    </div>
+                `;
+            }
+            
+            // Query Analysis
+            if (data.query_analysis) {
+                resultsContent.innerHTML += `
+                    <div class="result-section">
+                        <h4>💬 Query Analysis</h4>
+                        <p><strong>Detected Pests:</strong> ${data.query_analysis.detected_pests.join(', ') || 'None mentioned'}</p>
+                        <p><strong>Symptoms:</strong> ${data.query_analysis.detected_symptoms.join(', ') || 'None mentioned'}</p>
+                        <p><strong>Severity:</strong> ${data.query_analysis.severity}</p>
+                        <p><strong>Urgency:</strong> ${data.query_analysis.urgency}</p>
+                    </div>
+                `;
+            }
+            
+            // Combined Analysis
+            if (data.combined_analysis) {
+                resultsContent.innerHTML += `
+                    <div class="result-section">
+                        <h4>🎯 Combined Analysis</h4>
+                        <p><strong>All Detected Pests:</strong> ${data.combined_analysis.all_detected_pests.join(', ') || 'None'}</p>
+                        <p><strong>Confirmed Pests:</strong> ${data.combined_analysis.confirmed_pests.join(', ') || 'None'}</p>
+                        <p><strong>Total Pest Count:</strong> ${data.combined_analysis.total_pest_count}</p>
+                        <p><strong>Overall Severity:</strong> ${data.combined_analysis.severity}</p>
+                        <p><strong>Confidence Score:</strong> ${(data.confidence_score * 100).toFixed(1)}%</p>
+                        <div class="confidence-bar">
+                            <div class="confidence-fill" style="width: ${data.confidence_score * 100}%"></div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Recommendations
+            if (data.recommendations && data.recommendations.length > 0) {
+                let recommendationsHtml = '<div class="result-section"><h4>💡 Recommendations</h4>';
+                data.recommendations.forEach(rec => {
+                    recommendationsHtml += `<div class="recommendation-item">${rec}</div>`;
+                });
+                recommendationsHtml += '</div>';
+                resultsContent.innerHTML += recommendationsHtml;
+            }
+            
+            // Spraying Plan
+            if (data.spraying_plan) {
+                resultsContent.innerHTML += `
+                    <div class="result-section">
+                        <h4>🚁 Spraying Plan</h4>
+                        <p><strong>Pesticide Type:</strong> ${data.spraying_plan.pesticide_type}</p>
+                        <p><strong>Quantity Needed:</strong> ${data.spraying_plan.quantity_ml} ml</p>
+                        <p><strong>Field Area:</strong> ${data.spraying_plan.field_area_hectares} hectares</p>
+                        <p><strong>Application Rate:</strong> ${data.spraying_plan.application_rate}</p>
+                        <p><strong>Best Time:</strong> ${data.spraying_plan.best_application_time}</p>
+                        <p><strong>Estimated Time:</strong> ${data.spraying_plan.estimated_time_hours} hours</p>
+                    </div>
+                `;
+            }
+            
+            // Cost Estimate
+            if (data.spraying_plan) {
+                resultsContent.innerHTML += `
+                    <div class="result-section">
+                        <h4>💰 Cost Estimate</h4>
+                        <div class="cost-item">
+                            <strong>Pesticide Cost:</strong> $${data.spraying_plan.pesticide_cost}
+                        </div>
+                        <div class="cost-item">
+                            <strong>Labor Cost:</strong> $${data.spraying_plan.labor_cost}
+                        </div>
+                        <div class="cost-item">
+                            <strong>Total Cost:</strong> $${data.spraying_plan.total_cost}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            document.getElementById('results').style.display = 'block';
         }
+        
+        function showError(message) {
+            const resultsContent = document.getElementById('resultsContent');
+            resultsContent.innerHTML = `
+                <div class="error">
+                    <strong>Error:</strong> ${message}
+                </div>
+            `;
+            document.getElementById('results').style.display = 'block';
+        }
+        
+        // Allow Enter key to submit
+        document.getElementById('queryInput').addEventListener('keydown', function(e) {
+            if (e.ctrlKey && e.key === 'Enter') {
+                analyzeField();
+            }
+        });
     </script>
 </body>
 </html>
