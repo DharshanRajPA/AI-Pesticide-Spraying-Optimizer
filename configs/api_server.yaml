@@ -1,0 +1,176 @@
+# FastAPI Server Configuration
+# Defines the API server settings and endpoints
+
+# Server Configuration
+server:
+  host: "0.0.0.0"
+  port: 8000
+  workers: 4
+  
+  # Production settings
+  production:
+    enabled: false
+    gunicorn:
+      workers: 4
+      worker_class: "uvicorn.workers.UvicornWorker"
+      bind: "0.0.0.0:8000"
+      timeout: 120
+      keepalive: 2
+
+# API Configuration
+api:
+  title: "AgriSprayAI API"
+  description: "AI-Powered Pesticide Spraying Optimization API"
+  version: "1.0.0"
+  
+  # CORS settings
+  cors:
+    origins: ["http://localhost:3000", "https://your-domain.com"]
+    methods: ["GET", "POST", "PUT", "DELETE"]
+    headers: ["*"]
+    
+  # Rate limiting
+  rate_limit:
+    enabled: true
+    requests_per_minute: 60
+    burst_size: 10
+
+# Authentication
+auth:
+  enabled: true
+  secret_key: "your-secret-key-here"  # Change in production
+  algorithm: "HS256"
+  access_token_expire_minutes: 30
+  
+  # API Keys for external services
+  api_keys:
+    gemini: "your-gemini-api-key"
+    kaggle: "your-kaggle-api-key"
+
+# Model Configuration
+models:
+  # Vision model
+  vision:
+    model_path: "models/yolov8_baseline/weights/best.pt"
+    confidence_threshold: 0.5
+    iou_threshold: 0.45
+    
+  # Fusion model
+  fusion:
+    model_path: "models/fusion_model.pt"
+    confidence_threshold: 0.7
+    
+  # Segmentation model
+  segmentation:
+    model_path: "models/segmentation_best.pt"
+    confidence_threshold: 0.5
+    
+  # NLP model
+  nlp:
+    whisper_model: "base"  # tiny, base, small, medium, large
+    sentence_transformer: "sentence-transformers/all-MiniLM-L6-v2"
+    
+  # Gemini configuration
+  gemini:
+    model: "gemini-1.5-flash"
+    temperature: 0.1  # Low temperature for consistent outputs
+    max_output_tokens: 200
+    top_p: 0.8
+    top_k: 40
+    rate_limit: 100  # requests per hour
+
+# File Upload Configuration
+upload:
+  max_file_size: 50 * 1024 * 1024  # 50MB
+  allowed_extensions: [".jpg", ".jpeg", ".png", ".tiff", ".bmp"]
+  upload_dir: "uploads"
+  
+  # Image processing
+  image:
+    max_width: 4096
+    max_height: 4096
+    quality: 95
+
+# Database Configuration
+database:
+  url: "sqlite:///./agrispray.db"  # Change to PostgreSQL in production
+  echo: false
+  
+  # Connection pool
+  pool_size: 10
+  max_overflow: 20
+  pool_timeout: 30
+  pool_recycle: 3600
+
+# Redis Configuration (for caching)
+redis:
+  enabled: true
+  url: "redis://localhost:6379"
+  db: 0
+  
+  # Cache settings
+  cache:
+    ttl: 3600  # 1 hour
+    max_size: 1000
+
+# Logging Configuration
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  
+  # File logging
+  file:
+    enabled: true
+    path: "logs/api.log"
+    max_size: 100 * 1024 * 1024  # 100MB
+    backup_count: 5
+    
+  # Structured logging
+  structured: true
+  json_format: true
+
+# Monitoring and Metrics
+monitoring:
+  # Prometheus metrics
+  prometheus:
+    enabled: true
+    port: 9090
+    
+  # Health checks
+  health:
+    enabled: true
+    endpoint: "/health"
+    
+  # Performance monitoring
+  performance:
+    enabled: true
+    slow_query_threshold: 1.0  # seconds
+
+# Security Configuration
+security:
+  # HTTPS
+  https:
+    enabled: false
+    cert_file: "certs/cert.pem"
+    key_file: "certs/key.pem"
+    
+  # Input validation
+  validation:
+    strict_mode: true
+    sanitize_inputs: true
+    
+  # Privacy
+  privacy:
+    anonymize_logs: true
+    data_retention_days: 90
+    gdpr_compliance: true
+
+# Development Configuration
+development:
+  debug: true
+  reload: true
+  log_level: "DEBUG"
+  
+  # Testing
+  test_mode: false
+  mock_models: false
