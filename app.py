@@ -30,16 +30,40 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Load YOLO model and class mapping
-model_path = "models/best.pt"
+# Try multiple likely locations for a trained model
+candidate_model_paths = [
+    "models/fusion_model.pt",
+    "models/best.pt",
+    "agrispray_training/pest_detection_production2/weights/best.pt",
+    "agrispray_training/pest_detection_production/weights/best.pt",
+    "models/yolov8n.pt",
+    "yolov8n.pt",
+]
+model_path = None
 model_info_path = "models/model_info.json"
 
-# Load model
-if os.path.exists(model_path):
-    model = YOLO(model_path)
-    print(f"✅ Trained model loaded: {model_path}")
-else:
-    model = None
-    print("WARNING: Trained model not found, using mock predictions")
+# Load model: try candidates in order until one loads
+model = None
+load_errors = {}
+for path in candidate_model_paths:
+    if not os.path.exists(path):
+        continue
+    try:
+        model = YOLO(path)
+        model_path = path
+        print(f"✅ Trained model loaded: {model_path}")
+        break
+    except Exception as e:
+        load_errors[path] = str(e)
+        print(f"⚠️ Failed to load model at {path}: {e}")
+        model = None
+
+if model is None:
+    print("WARNING: Trained model not found or failed to load any candidate, using mock predictions")
+    if load_errors:
+        print("Tried and failed paths:")
+        for p, err in load_errors.items():
+            print(f" - {p}: {err}")
 
 # Load class mapping
 class_mapping = {}
@@ -159,7 +183,11 @@ async def detect_pests(file: UploadFile = File(...)):
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "model_loaded": model is not None}
+    return {
+        "status": "healthy",
+        "model_loaded": model is not None,
+        "model_path": model_path if model is not None else None
+    }
 
 def estimate_field_area(image):
     # Simple area estimation based on image dimensions

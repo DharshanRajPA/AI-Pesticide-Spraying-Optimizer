@@ -50,6 +50,8 @@ class SemanticTextProcessor:
         # Knowledge bases
         self.pest_database: Dict[str, Dict[str, List[str]]] = self._load_pest_database()
         self.symptom_database: Dict[str, Dict[str, List[str]]] = self._load_symptom_database()
+        self.plant_synonyms: Dict[str, List[str]] = self._load_plant_synonyms()
+        self.normalization_map: Dict[str, str] = self._load_normalization_map()
 
         # Build TF-IDF semantic space using all phrases we care about
         self.reference_terms: List[str] = self._build_reference_terms()
@@ -118,8 +120,16 @@ class SemanticTextProcessor:
             focus = "preventive_measures"
 
         # Temporal/spatial heuristics
-        temporal = "recent" if any(w in q for w in ["today", "now", "lately", "recently"]) else "unknown"
-        spatial = "widespread" if any(w in q for w in ["everywhere", "entire", "whole"]) else "unknown"
+        temporal = (
+            "recent"
+            if any(w in q for w in ["today", "now", "lately", "recently", "just", "this week"]) else
+            ("ongoing" if any(w in q for w in ["for days", "for weeks", "keeps happening", "continuously"]) else
+             ("sudden" if any(w in q for w in ["suddenly", "overnight", "quickly"]) else "none"))
+        )
+        spatial = (
+            "widespread" if any(w in q for w in ["everywhere", "entire", "whole", "throughout"]) else
+            ("localized" if any(w in q for w in ["corner", "edge", "one area", "specific spot", "patches"]) else "none")
+        )
 
         return {
             "primary_concern": self._primary_concern(detected_pests, symptoms, plant_context),
@@ -136,7 +146,12 @@ class SemanticTextProcessor:
     # ----------------------- internals -----------------------
 
     def _normalize(self, text: str) -> str:
-        return re.sub(r"\s+", " ", text.strip().lower())
+        s = re.sub(r"\s+", " ", text.strip().lower())
+        # Apply simple normalization for common misspellings and variants
+        for wrong, right in self.normalization_map.items():
+            if wrong in s:
+                s = s.replace(wrong, right)
+        return s
 
     def _build_reference_terms(self) -> List[str]:
         terms: List[str] = []
@@ -270,15 +285,30 @@ class SemanticTextProcessor:
         return "moderate_pest_issue"
 
     def _detect_plant_context(self, query: str) -> str:
-        plants = ["tomato", "cabbage", "corn", "lettuce", "pepper", "bean"]
-        for p in plants:
+        # direct plant names
+        for p in self.plant_synonyms.keys():
             if p in query or (p + "s") in query:
                 return p
-        return "unknown"
+        # synonym match
+        for plant, syns in self.plant_synonyms.items():
+            for s in syns:
+                if s in query:
+                    return plant
+        # phrase patterns
+        m = re.search(r"my ([a-z\s]+?) (plants|crop|leaves)", query)
+        if m:
+            phrase = m.group(1).strip()
+            for plant, syns in self.plant_synonyms.items():
+                if plant in phrase or any(s in phrase for s in syns):
+                    return plant
+        return "none"
 
     def _detect_environmental_factors(self, query: str) -> List[str]:
         mapping = {
-            "weather": ["rain", "rainy", "wet", "humid", "dry", "hot", "cold"],
+            "weather": [
+                "rain", "rainy", "wet", "humid", "dry", "hot", "cold",
+                "monsoon", "storm", "windy", "heat", "drought", "flood"
+            ],
             "soil": ["soil", "drainage", "fertilizer", "nutrients"],
             "water": ["watering", "irrigation", "moisture"],
         }
@@ -286,7 +316,7 @@ class SemanticTextProcessor:
         for k, words in mapping.items():
             if any(w in query for w in words):
                 found.append(k)
-        return found
+        return found or ["none"]
 
     def _all_pest_aliases(self) -> List[str]:
         aliases: List[str] = []
@@ -322,7 +352,7 @@ class SemanticTextProcessor:
             "ants": {"synonyms": ["ant", "ants"], "characteristics": ["colony", "small", "black", "brown"]},
             "bees": {"synonyms": ["bee", "bees"], "characteristics": ["yellow", "black", "flying"]},
             "beetle": {"synonyms": ["beetle", "beetles", "bug", "bugs"], "characteristics": ["hard shell", "spots"]},
-            "caterpillar": {"synonyms": ["caterpillar", "caterpillars", "worm", "larva"], "characteristics": ["green", "hairy", "soft body"]},
+            "caterpillar": {"synonyms": ["caterpillar", "caterpillars", "worm", "larva", "larvae", "inchworm"], "characteristics": ["green", "hairy", "soft body"]},
             "earthworms": {"synonyms": ["earthworm", "earthworms", "worm", "worms"], "characteristics": ["underground", "soil"]},
             "earwig": {"synonyms": ["earwig", "earwigs"], "characteristics": ["pincers", "nocturnal"]},
             "grasshopper": {"synonyms": ["grasshopper", "grasshoppers", "locust"], "characteristics": ["jumping", "green", "brown"]},
@@ -359,6 +389,29 @@ class SemanticTextProcessor:
                 "keywords": ["defoliation", "leaf loss", "stripped"],
                 "synonyms": ["complete leaf loss", "denuded"],
             },
+        }
+
+    def _load_plant_synonyms(self) -> Dict[str, List[str]]:
+        return {
+            "tomato": ["tomatoes", "tomato plant", "tomato crop", "tomato plants"],
+            "cabbage": ["cabbage plant", "cabbage crop", "brassica", "cabbages"],
+            "corn": ["maize", "corn plant", "corn crop", "corns"],
+            "lettuce": ["lettuce plant", "lettuce crop", "leafy greens"],
+            "pepper": ["pepper plant", "pepper crop", "bell pepper", "chili", "chilli", "capsicum", "peppers"],
+            "bean": ["bean plant", "bean crop", "beans", "legumes"],
+            "rose": ["roses", "rose plant"],
+        }
+
+    def _load_normalization_map(self) -> Dict[str, str]:
+        return {
+            # common pest misspellings
+            "catterpillar": "caterpillar",
+            "catapillar": "caterpillar",
+            "catepillar": "caterpillar",
+            "gras hopper": "grasshopper",
+            # morphological variants we want unified
+            "larvae": "larva",
+            "insects": "insect",
         }
 
 

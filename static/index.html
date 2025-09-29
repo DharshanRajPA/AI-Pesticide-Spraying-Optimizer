@@ -298,6 +298,8 @@
     </div>
 
     <script>
+        // Resolve API base: use current origin when served via FastAPI, otherwise fallback to localhost
+        const apiBase = (window.location.protocol !== 'file:') ? window.location.origin : 'http://localhost:8000';
         async function analyzeField() {
             const imageFile = document.getElementById('imageInput').files[0];
             const userQuery = document.getElementById('queryInput').value.trim();
@@ -323,7 +325,7 @@
                 formData.append('file', imageFile);
                 formData.append('user_query', userQuery);
                 
-                const response = await fetch('/analyze', {
+                const response = await fetch(`${apiBase}/analyze`, {
                     method: 'POST',
                     body: formData
                 });
@@ -385,26 +387,43 @@
             
             // Query Analysis
             if (data.query_analysis) {
+                const qa = data.query_analysis;
+                const ctx = qa.context || {};
+                const env = (ctx.environmental_factors || []).join(', ');
                 resultsContent.innerHTML += `
                     <div class="result-section">
                         <h4>💬 Query Analysis</h4>
-                        <p><strong>Detected Pests:</strong> ${data.query_analysis.detected_pests.join(', ') || 'None mentioned'}</p>
-                        <p><strong>Symptoms:</strong> ${data.query_analysis.detected_symptoms.join(', ') || 'None mentioned'}</p>
-                        <p><strong>Severity:</strong> ${data.query_analysis.severity}</p>
-                        <p><strong>Urgency:</strong> ${data.query_analysis.urgency}</p>
+                        <p><strong>Intent:</strong> ${qa.intent || 'unknown'}</p>
+                        <p><strong>Detected Pests:</strong> ${qa.detected_pests.join(', ') || 'None mentioned'}</p>
+                        <p><strong>Symptoms:</strong> ${qa.detected_symptoms.join(', ') || 'None mentioned'}</p>
+                        <p><strong>Severity:</strong> ${qa.severity}</p>
+                        <p><strong>Urgency:</strong> ${qa.urgency}</p>
+                        <p><strong>Processing:</strong> ${qa.processing_method || 'n/a'}</p>
+                        <div style="margin-top:10px"></div>
+                        <h4>🧠 Context</h4>
+                        <p><strong>Primary Concern:</strong> ${ctx.primary_concern || 'unknown'}</p>
+                        <p><strong>Plant Context:</strong> ${ctx.plant_context || 'unknown'}</p>
+                        <p><strong>Temporal:</strong> ${ctx.temporal_context || 'unknown'}</p>
+                        <p><strong>Spatial:</strong> ${ctx.spatial_context || 'unknown'}</p>
+                        <p><strong>Environmental Factors:</strong> ${env || 'none'}</p>
+                        <p><strong>Risk Level:</strong> ${ctx.risk_level || 'medium'}</p>
+                        <p><strong>Recommended Focus:</strong> ${ctx.recommended_focus || 'preventive_measures'}</p>
                     </div>
                 `;
             }
             
             // Combined Analysis
             if (data.combined_analysis) {
+                const ca = data.combined_analysis;
+                const pestConf = (ca.pest_confidences || []).map(c => (c*100).toFixed(0)+'%').join(', ');
                 resultsContent.innerHTML += `
                     <div class="result-section">
                         <h4>🎯 Combined Analysis</h4>
-                        <p><strong>All Detected Pests:</strong> ${data.combined_analysis.all_detected_pests.join(', ') || 'None'}</p>
-                        <p><strong>Confirmed Pests:</strong> ${data.combined_analysis.confirmed_pests.join(', ') || 'None'}</p>
-                        <p><strong>Total Pest Count:</strong> ${data.combined_analysis.total_pest_count}</p>
-                        <p><strong>Overall Severity:</strong> ${data.combined_analysis.severity}</p>
+                        <p><strong>All Detected Pests:</strong> ${ca.all_detected_pests.join(', ') || 'None'}</p>
+                        <p><strong>Confirmed Pests:</strong> ${ca.confirmed_pests.join(', ') || 'None'}</p>
+                        <p><strong>Total Pest Count:</strong> ${ca.total_pest_count}</p>
+                        <p><strong>Overall Severity:</strong> ${ca.severity}</p>
+                        <p><strong>Model Confidences (image):</strong> ${pestConf || 'n/a'}</p>
                         <p><strong>Confidence Score:</strong> ${(data.confidence_score * 100).toFixed(1)}%</p>
                         <div class="confidence-bar">
                             <div class="confidence-fill" style="width: ${data.confidence_score * 100}%"></div>
