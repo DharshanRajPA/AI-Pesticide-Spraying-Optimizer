@@ -9,6 +9,11 @@ import json
 import os
 import uuid
 from datetime import datetime
+from semantic_text_processor import (
+    SemanticTextProcessor,
+    ProcessedQuery,
+    QueryIntent,
+)
 
 app = FastAPI(title="AgriSprayAI", description="AI-Powered Pest Detection with User Query Processing")
 
@@ -24,13 +29,41 @@ app.add_middleware(
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Load YOLO model
+# Load YOLO model and class mapping
 model_path = "models/best.pt"
+model_info_path = "models/model_info.json"
+
+# Load model
 if os.path.exists(model_path):
     model = YOLO(model_path)
+    print(f"✅ Trained model loaded: {model_path}")
 else:
     model = None
-    print("WARNING: Model not found, using mock predictions")
+    print("WARNING: Trained model not found, using mock predictions")
+
+# Load class mapping
+class_mapping = {}
+if os.path.exists("class_mapping.json"):
+    with open("class_mapping.json", 'r') as f:
+        class_mapping = json.load(f)
+    print(f"✅ Class mapping loaded: {len(class_mapping)} classes")
+elif os.path.exists(model_info_path):
+    with open(model_info_path, 'r') as f:
+        model_info = json.load(f)
+        class_mapping = {str(i): class_name for i, class_name in enumerate(model_info.get('classes', []))}
+    print(f"✅ Class mapping loaded from model info: {len(class_mapping)} classes")
+else:
+    # Fallback class mapping
+    class_mapping = {
+        "0": "ants", "1": "bees", "2": "beetle", "3": "caterpillar",
+        "4": "earthworms", "5": "earwig", "6": "grasshopper", "7": "moth",
+        "8": "slug", "9": "snail", "10": "wasp", "11": "weevil"
+    }
+    print("⚠️ Using fallback class mapping")
+
+# Initialize offline semantic text processing system (single-file)
+semantic_processor = SemanticTextProcessor()
+print("✓ Semantic text processing system initialized (offline, no APIs)")
 
 @app.get("/")
 async def read_root():
@@ -57,7 +90,7 @@ async def analyze_field(
         # Process image with YOLO
         image_analysis = process_image_analysis(image)
         
-        # Process user query
+        # Process user query (semantic, offline)
         query_analysis = process_user_query(user_query)
         
         # Combine image and query analysis
@@ -158,9 +191,8 @@ def process_image_analysis(image):
                 class_id = int(detections.cls[i].item())
                 confidence = float(detections.conf[i].item())
                 
-                # Map class to pest name
-                pest_names = ["Aphid", "Caterpillar", "Beetle", "Moth", "Wasp", "Grasshopper", "Snail", "Slug"]
-                pest_name = pest_names[class_id] if class_id < len(pest_names) else f"Pest_{class_id}"
+                # Map class to pest name using trained model classes
+                pest_name = class_mapping.get(str(class_id), f"Pest_{class_id}")
                 
                 pest_types.append(pest_name)
                 confidences.append(confidence)
@@ -169,9 +201,10 @@ def process_image_analysis(image):
             pest_types = []
             confidences = []
     else:
-        # Mock detection for demo
-        pest_count = 3
-        pest_types = ["Aphid", "Caterpillar", "Beetle"]
+        # Mock detection for demo using actual class names
+        mock_pests = list(class_mapping.values())[:3] if class_mapping else ["beetle", "caterpillar", "moth"]
+        pest_count = len(mock_pests)
+        pest_types = mock_pests
         confidences = [0.85, 0.72, 0.68]
     
     # Estimate field area
@@ -186,27 +219,73 @@ def process_image_analysis(image):
     }
 
 def process_user_query(query):
-    """Process user text query to extract pest information and symptoms"""
+    """Process user text query using offline semantic processor (no LLM/API)."""
+    try:
+        processed_query = semantic_processor.process_query(query)
+        context_insight = semantic_processor.analyze_context(
+            query, processed_query.detected_pests, processed_query.symptoms
+        )
+        # Build contextual recommendations (simple, inline)
+        contextual_recommendations = {
+            "immediate_actions": [],
+            "preventive_measures": [],
+            "monitoring_suggestions": [
+                "Check plants daily for new damage",
+                "Track environmental conditions",
+            ],
+            "environmental_adjustments": [],
+        }
+        if context_insight.get("context", {}).get("risk_level") == "high":
+            contextual_recommendations["immediate_actions"].extend([
+                "Apply targeted pesticide treatment immediately",
+                "Remove heavily infested plant parts",
+            ])
+        if context_insight.get("plant_context") != "unknown":
+            contextual_recommendations["preventive_measures"].extend([
+                f"Implement crop rotation for {context_insight.get('plant_context')}",
+                "Maintain proper plant spacing",
+            ])
+        if "weather" in context_insight.get("environmental_factors", []):
+            contextual_recommendations["environmental_adjustments"].extend([
+                "Adjust watering schedule based on weather",
+                "Provide shelter during extreme weather",
+            ])
+
+        return {
+            "detected_pests": processed_query.detected_pests,
+            "detected_symptoms": processed_query.symptoms,
+            "severity": processed_query.severity,
+            "urgency": processed_query.urgency,
+            "confidence": processed_query.confidence,
+            "intent": processed_query.intent.value,
+            "context": {
+                "primary_concern": context_insight.get("primary_concern", "general_inquiry"),
+                "plant_context": context_insight.get("plant_context", "unknown"),
+                "temporal_context": context_insight.get("temporal_context", "unknown"),
+                "spatial_context": context_insight.get("spatial_context", "unknown"),
+                "environmental_factors": context_insight.get("environmental_factors", []),
+                "risk_level": context_insight.get("context", {}).get("risk_level", "medium"),
+                "recommended_focus": context_insight.get("recommended_focus", "preventive_measures"),
+            },
+            "contextual_recommendations": contextual_recommendations,
+            "query_length": len(query),
+            "processing_method": "offline_semantic_tfidf",
+        }
+    except Exception as e:
+        print(f"Error in semantic text processing: {e}")
+        return process_user_query_fallback(query)
+
+def process_user_query_fallback(query):
+    """Fallback basic text processing if intelligent system fails"""
     query_lower = query.lower()
     
-    # Extract pest mentions
-    pest_keywords = {
-        "aphid": ["aphid", "aphids", "greenfly", "blackfly"],
-        "caterpillar": ["caterpillar", "caterpillars", "worm", "worms", "larva"],
-        "beetle": ["beetle", "beetles", "bug", "bugs"],
-        "moth": ["moth", "moths"],
-        "wasp": ["wasp", "wasps"],
-        "grasshopper": ["grasshopper", "grasshoppers", "locust"],
-        "snail": ["snail", "snails"],
-        "slug": ["slug", "slugs"]
-    }
-    
+    # Basic pest detection
     detected_pests = []
-    for pest, keywords in pest_keywords.items():
-        if any(keyword in query_lower for keyword in keywords):
-            detected_pests.append(pest)
+    for class_name in class_mapping.values():
+        if class_name in query_lower or f"{class_name}s" in query_lower:
+            detected_pests.append(class_name)
     
-    # Extract symptoms
+    # Basic symptom detection
     symptom_keywords = {
         "holes_in_leaves": ["holes", "chewed", "eaten", "damaged leaves"],
         "yellowing": ["yellow", "yellowing", "discolored"],
@@ -220,29 +299,41 @@ def process_user_query(query):
         if any(keyword in query_lower for keyword in keywords):
             detected_symptoms.append(symptom)
     
-    # Determine severity from query
-    severity_indicators = {
-        "low": ["few", "some", "little", "slight"],
-        "medium": ["many", "several", "moderate"],
-        "high": ["lots", "many", "severe", "heavy", "infestation"]
-    }
-    
-    severity = "medium"  # default
-    for level, indicators in severity_indicators.items():
-        if any(indicator in query_lower for indicator in indicators):
-            severity = level
-            break
+    # Basic severity detection
+    severity = "medium"
+    if any(word in query_lower for word in ["few", "some", "little", "slight"]):
+        severity = "low"
+    elif any(word in query_lower for word in ["lots", "many", "severe", "heavy", "infestation"]):
+        severity = "high"
     
     return {
         "detected_pests": detected_pests,
         "detected_symptoms": detected_symptoms,
         "severity": severity,
+        "urgency": "high" if any(word in query_lower for word in ["urgent", "emergency", "help", "quickly"]) else "normal",
+        "confidence": 0.5,
+        "intent": "general_inquiry",
+        "context": {
+            "primary_concern": "general_inquiry",
+            "plant_context": "unknown",
+            "temporal_context": "unknown",
+            "spatial_context": "unknown",
+            "environmental_factors": [],
+            "risk_level": "medium",
+            "recommended_focus": "preventive_measures"
+        },
+        "contextual_recommendations": {
+            "immediate_actions": ["Monitor plants closely"],
+            "preventive_measures": ["Apply general preventive measures"],
+            "monitoring_suggestions": ["Check plants regularly"],
+            "environmental_adjustments": []
+        },
         "query_length": len(query),
-        "urgency": "high" if any(word in query_lower for word in ["urgent", "emergency", "help", "quickly"]) else "normal"
+        "processing_method": "fallback_basic_analysis"
     }
 
 def combine_analyses(image_analysis, query_analysis):
-    """Combine image and query analysis for comprehensive results"""
+    """Combine image and query analysis for comprehensive results using intelligent processing"""
     
     # Merge pest detections
     image_pests = set(image_analysis["pest_types"])
@@ -252,23 +343,34 @@ def combine_analyses(image_analysis, query_analysis):
     all_pests = list(image_pests.union(query_pests))
     confirmed_pests = list(image_pests.intersection(query_pests))
     
-    # Calculate combined confidence
-    if image_analysis["pest_count"] > 0 and query_analysis["detected_pests"]:
-        confidence = 0.9  # High confidence when both agree
-    elif image_analysis["pest_count"] > 0 or query_analysis["detected_pests"]:
-        confidence = 0.7  # Medium confidence when one source detects
-    else:
-        confidence = 0.3  # Low confidence when neither detects
+    # Calculate combined confidence using intelligent analysis
+    image_confidence = 0.8 if image_analysis["pest_count"] > 0 else 0.2
+    query_confidence = query_analysis.get("confidence", 0.5)
     
-    # Determine overall severity
-    if query_analysis["severity"] == "high" or image_analysis["pest_count"] > 5:
+    # Weighted confidence calculation
+    if image_analysis["pest_count"] > 0 and query_analysis["detected_pests"]:
+        # Both sources agree - high confidence
+        combined_confidence = min(0.95, (image_confidence + query_confidence) / 2 + 0.2)
+    elif image_analysis["pest_count"] > 0 or query_analysis["detected_pests"]:
+        # One source detects - medium confidence
+        combined_confidence = (image_confidence + query_confidence) / 2
+    else:
+        # Neither detects - low confidence
+        combined_confidence = 0.3
+    
+    # Determine overall severity using intelligent analysis
+    query_severity = query_analysis.get("severity", "medium")
+    context_risk = query_analysis.get("context", {}).get("risk_level", "medium")
+    
+    if query_severity == "high" or context_risk == "high" or image_analysis["pest_count"] > 5:
         overall_severity = "high"
-    elif query_analysis["severity"] == "low" and image_analysis["pest_count"] < 3:
+    elif query_severity == "low" and context_risk == "low" and image_analysis["pest_count"] < 3:
         overall_severity = "low"
     else:
         overall_severity = "medium"
     
-    return {
+    # Enhanced analysis with context
+    enhanced_analysis = {
         "all_detected_pests": all_pests,
         "confirmed_pests": confirmed_pests,
         "image_pests": list(image_pests),
@@ -276,54 +378,139 @@ def combine_analyses(image_analysis, query_analysis):
         "total_pest_count": max(image_analysis["pest_count"], len(query_analysis["detected_pests"])),
         "symptoms": query_analysis["detected_symptoms"],
         "severity": overall_severity,
-        "confidence": confidence,
+        "confidence": combined_confidence,
         "field_area": image_analysis["field_area"],
-        "urgency": query_analysis["urgency"]
+        "urgency": query_analysis.get("urgency", "normal"),
+        "intent": query_analysis.get("intent", "general_inquiry"),
+        "context": query_analysis.get("context", {}),
+        "contextual_recommendations": query_analysis.get("contextual_recommendations", {}),
+        "processing_method": query_analysis.get("processing_method", "unknown"),
+        "image_quality": image_analysis.get("image_quality", "unknown"),
+        "pest_confidences": image_analysis.get("confidences", [])
     }
+    
+    return enhanced_analysis
 
 def generate_comprehensive_recommendations(combined_analysis):
-    """Generate comprehensive recommendations based on combined analysis"""
+    """Generate comprehensive recommendations based on intelligent combined analysis"""
     
     pest_count = combined_analysis["total_pest_count"]
     severity = combined_analysis["severity"]
     symptoms = combined_analysis["symptoms"]
     urgency = combined_analysis["urgency"]
+    context = combined_analysis.get("context", {})
+    contextual_recommendations = combined_analysis.get("contextual_recommendations", {})
+    intent = combined_analysis.get("intent", "general_inquiry")
     
     recommendations = []
     
-    # Immediate actions
+    # Add contextual recommendations first (from intelligent analysis)
+    if contextual_recommendations:
+        if contextual_recommendations.get("immediate_actions"):
+            recommendations.extend(contextual_recommendations["immediate_actions"])
+        if contextual_recommendations.get("preventive_measures"):
+            recommendations.extend(contextual_recommendations["preventive_measures"])
+        if contextual_recommendations.get("environmental_adjustments"):
+            recommendations.extend(contextual_recommendations["environmental_adjustments"])
+    
+    # Intent-based recommendations
+    if intent == "pest_identification":
+        recommendations.append("Pest identification confirmed - proceed with targeted treatment")
+    elif intent == "treatment_request":
+        recommendations.append("Treatment recommendations provided based on analysis")
+    elif intent == "severity_assessment":
+        recommendations.append("Severity assessment completed - adjust treatment intensity accordingly")
+    
+    # Context-aware recommendations
+    plant_context = context.get("plant_context", "unknown")
+    if plant_context != "unknown":
+        recommendations.append(f"Plant-specific treatment for {plant_context} recommended")
+    
+    environmental_factors = context.get("environmental_factors", [])
+    if "weather" in environmental_factors:
+        recommendations.append("Weather conditions considered in treatment timing")
+    if "soil" in environmental_factors:
+        recommendations.append("Soil health factors included in recommendations")
+    
+    # Urgency-based recommendations
     if urgency == "high":
-        recommendations.append("🚨 URGENT: Immediate action required!")
+        recommendations.append("URGENT: Immediate action required!")
+        recommendations.append("Prioritize high-impact treatments")
     
-    # Pest-specific recommendations
-    if "aphid" in combined_analysis["all_detected_pests"]:
-        recommendations.append("🐛 Aphids detected: Use neem oil or insecticidal soap")
+    # Enhanced pest-specific recommendations with context
+    detected_pests = combined_analysis["all_detected_pests"]
     
-    if "caterpillar" in combined_analysis["all_detected_pests"]:
-        recommendations.append("🐛 Caterpillars detected: Apply Bt (Bacillus thuringiensis)")
+    if "caterpillar" in detected_pests:
+        if plant_context in ["tomato", "cabbage", "lettuce"]:
+            recommendations.append("Caterpillars on vulnerable plants: Apply Bt (Bacillus thuringiensis) immediately")
+        else:
+            recommendations.append("Caterpillars detected: Apply Bt (Bacillus thuringiensis)")
     
-    if "beetle" in combined_analysis["all_detected_pests"]:
-        recommendations.append("🐛 Beetles detected: Use pyrethrin-based spray")
+    if "beetle" in detected_pests:
+        if plant_context in ["corn", "bean"]:
+            recommendations.append("Beetles on preferred hosts: Use pyrethrin-based spray with soil treatment")
+        else:
+            recommendations.append("Beetles detected: Use pyrethrin-based spray")
     
-    # Symptom-based recommendations
+    if "grasshopper" in detected_pests:
+        recommendations.append("Grasshoppers detected: Apply contact insecticide, consider barrier methods")
+    
+    if "slug" in detected_pests or "snail" in detected_pests:
+        if "weather" in environmental_factors:
+            recommendations.append("Slugs/snails in wet conditions: Apply iron phosphate bait, improve drainage")
+        else:
+            recommendations.append("Slugs/snails detected: Apply iron phosphate bait")
+    
+    # Enhanced symptom-based recommendations
     if "holes_in_leaves" in symptoms:
-        recommendations.append("🍃 Leaf damage detected: Apply contact insecticide")
+        if "caterpillar" in detected_pests:
+            recommendations.append("Large holes indicate caterpillar feeding - use Bt treatment")
+        elif "beetle" in detected_pests:
+            recommendations.append("Irregular holes indicate beetle damage - use contact spray")
+        else:
+            recommendations.append("Leaf damage detected: Apply contact insecticide")
     
     if "yellowing" in symptoms:
-        recommendations.append("🟡 Yellowing detected: Check for nutrient deficiency or disease")
+        recommendations.append("Yellowing detected: Check for nutrient deficiency or disease")
+        if "aphid" in detected_pests:
+            recommendations.append("Yellowing with aphids: Treat aphids first, then address nutrient issues")
     
-    # Severity-based recommendations
+    if "wilting" in symptoms:
+        recommendations.append("Wilting detected: Check for root damage or vascular issues")
+    
+    if "defoliation" in symptoms:
+        recommendations.append("Defoliation detected: Apply systemic treatment and monitor closely")
+    
+    # Severity-based recommendations with context
     if severity == "high":
-        recommendations.append("⚠️ High infestation: Use chemical pesticides immediately")
-        recommendations.append("📅 Schedule follow-up treatment in 7-10 days")
+        recommendations.append("High infestation: Use chemical pesticides immediately")
+        recommendations.append("Schedule follow-up treatment in 7-10 days")
+        if context.get("risk_level") == "high":
+            recommendations.append("High-risk situation: Consider professional consultation")
     elif severity == "medium":
-        recommendations.append("⚖️ Moderate infestation: Consider organic options first")
+        recommendations.append("Moderate infestation: Consider organic options first")
+        recommendations.append("Monitor pest population levels closely")
     else:
-        recommendations.append("✅ Light infestation: Monitor and use preventive measures")
+        recommendations.append("Light infestation: Monitor and use preventive measures")
+        recommendations.append("Focus on prevention and early detection")
     
-    # General recommendations
-    recommendations.append("🌱 Apply treatment early morning or late evening")
-    recommendations.append("💧 Ensure proper coverage of all plant surfaces")
+    # Risk-based recommendations
+    risk_level = context.get("risk_level", "medium")
+    if risk_level == "high":
+        recommendations.append("High-risk situation: Implement comprehensive IPM strategy")
+    elif risk_level == "low":
+        recommendations.append("Low-risk situation: Focus on prevention and monitoring")
+    
+    # General best practices
+    recommendations.append("Apply treatment early morning or late evening for best results")
+    recommendations.append("Ensure proper coverage of all plant surfaces")
+    recommendations.append("Keep detailed records of treatments and results")
+    
+    # Monitoring recommendations
+    if contextual_recommendations.get("monitoring_suggestions"):
+        recommendations.extend(contextual_recommendations["monitoring_suggestions"])
+    else:
+        recommendations.append("Monitor plants daily for changes in pest activity")
     
     return recommendations
 
