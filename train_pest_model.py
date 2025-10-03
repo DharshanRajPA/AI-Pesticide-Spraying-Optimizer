@@ -1,20 +1,5 @@
 #!/usr/bin/env python3
-"""
-🌾 AgriSprayAI - Pest Detection Model Training Script
 
-This script trains a YOLOv8 model for pest detection using the dataset in the dataset/ directory.
-It integrates seamlessly with our existing FastAPI application.
-
-Usage:
-    python train_pest_model.py
-
-Features:
-- Converts dataset to YOLO format
-- Trains YOLOv8 model on pest detection
-- Saves model in format compatible with our app
-- Generates comprehensive training metrics
-- Ensures integration with existing codebase
-"""
 
 import os
 import json
